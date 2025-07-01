@@ -2,6 +2,7 @@ use std::process::Command;
 
 use crate::device::{DeviceDescriptor, MountPoint};
 use serde::Deserialize;
+use serde_with::{DisplayFromStr, serde_as};
 
 #[derive(Deserialize, Debug)]
 struct Devices {
@@ -47,6 +48,7 @@ impl Device {
 
     fn description(&self) -> String {
         [
+            self.name.as_ref(),
             self.label.as_deref().unwrap_or_default(),
             self.vendor.as_deref().unwrap_or_default(),
             self.model.as_deref().unwrap_or_default(),
@@ -96,11 +98,13 @@ impl From<Device> for DeviceDescriptor {
         }
     }
 }
-
+#[serde_as]
 #[derive(Deserialize, Debug)]
 struct Child {
     mountpoint: Option<String>,
+    #[serde_as(as = "Option<DisplayFromStr>")]
     fssize: Option<u64>,
+    #[serde_as(as = "Option<DisplayFromStr>")]
     fsavail: Option<u64>,
     label: Option<String>,
     partlabel: Option<String>,
