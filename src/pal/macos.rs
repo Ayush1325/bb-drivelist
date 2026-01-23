@@ -20,7 +20,7 @@ struct Disk {
     size: u64,
     #[serde(rename = "Content")]
     content: String,
-    #[serde(rename = "Partitions")]
+    #[serde(rename = "Partitions", default)]
     partitions: Vec<Partition>,
 }
 
@@ -34,11 +34,41 @@ struct Partition {
     size: u64,
 }
 
+#[derive(Deserialize, Debug)]
+struct DiskInfo {
+    #[serde(rename = "MediaName")]
+    media_name: Option<String>,
+}
+
+fn get_media_name(device_identifier: &str) -> Option<String> {
+    let output = Command::new("diskutil")
+        .args(["info", "-plist", device_identifier])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let info: DiskInfo = plist::from_bytes(&output.stdout).ok()?;
+    info.media_name
+}
+
 impl From<Disk> for DeviceDescriptor {
     fn from(value: Disk) -> Self {
+        let description = if !value.content.is_empty() 
+            && !value.content.contains("partition_scheme")
+            && !value.content.contains("_Container") {
+            value.content.clone()
+        } else if let Some(name) = get_media_name(&value.device_identifier) {
+            name
+        } else {
+            format!("{} GB Disk", value.size / 1_000_000_000)
+        };
+
         DeviceDescriptor {
             enumerator: "diskutil".to_string(),
-            description: value.content,
+            description,
             size: value.size,
             mountpoints: value.partitions.into_iter().map(MountPoint::from).collect(),
             device: format!("/dev/{}", value.device_identifier),
